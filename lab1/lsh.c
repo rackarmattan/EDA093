@@ -27,6 +27,8 @@
 
 #define TRUE 1
 #define FALSE 0
+//TODO: Change before hand-in
+#define WUHAN WNOHANG
 
 void SignalHandler(int);
 void RunCommand(int, Command *);
@@ -89,19 +91,29 @@ void RunCommand(int parse_result, Command *cmd)
     return;
   }
   DebugPrintCommand(parse_result, cmd);
-
+  //TODO: Add checks for stdin, stdout, pipe, etc
+  int bg = cmd->background;
   pid_t pid = fork();
   if(pid < 0){
     printf("Error creating process");
   }
-  else if(pid == 0){
-    execvp(cmd->pgm->pgmlist[0], cmd->pgm->pgmlist); 
+  else if(pid == 0){ // CHILD
+    if (bg == TRUE) {
+      //signal(SIGINT, SIG_IGN);
+      setpgid(0,0);
+    }
+    execvp(cmd->pgm->pgmlist[0], cmd->pgm->pgmlist);
     exit(1);
   }
-  else{
-    wait(NULL);
+  else{ // PARENT
+    if (bg == FALSE) {
+      printf("Waiting\n");
+      wait(NULL);
+    } else {
+      waitpid(pid, WUHAN);
+      printf("[+] %d\n", pid);
+    }
   }
-  
 }
 
 /* 
