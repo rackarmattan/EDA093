@@ -22,20 +22,24 @@
 #include <ctype.h>
 #include <readline/readline.h>
 #include <readline/history.h>
+#include <signal.h>
 #include "parse.h"
 
 #define TRUE 1
 #define FALSE 0
 
+void InterruptHandler(int);
 void RunCommand(int, Command *);
 void DebugPrintCommand(int, Command *);
 void PrintPgm(Pgm *);
 void stripwhite(char *);
 
+static volatile int keepRunning = 1;
 int main(void)
 {
   Command cmd;
   int parse_result;
+  signal(SIGINT, InterruptHandler);
 
   while (TRUE)
   {
@@ -47,22 +51,33 @@ int main(void)
     {
       break;
     }
-    /* Remove leading and trailing whitespace from the line */
-    stripwhite(line);
-    /* If stripped line not blank */
-    if (*line)
-    {
-      add_history(line);
-      parse_result = parse(line, &cmd);
-      RunCommand(parse_result, &cmd);
-    }
+    
 
-    /* Clear memory */
-    free(line);
+    while(keepRunning)
+    {
+
+      /* Remove leading and trailing whitespace from the line */
+      stripwhite(line);
+      /* If stripped line not blank */
+      if (*line)
+      {
+        add_history(line);
+        parse_result = parse(line, &cmd);
+        RunCommand(parse_result, &cmd);
+      }
+
+      /* Clear memory */
+      free(line);
+    }
   }
   return 0;
 }
 
+void InterruptHandler(int dummy)
+{
+  printf("CTRL C Pressed");
+  keepRunning = 1;
+}
 
 /* Execute the given command(s).
 
@@ -74,7 +89,24 @@ int main(void)
  */
 void RunCommand(int parse_result, Command *cmd)
 {
+  if(parse_result < 0){
+    printf("Parse ERROR");
+    return;
+  }
   DebugPrintCommand(parse_result, cmd);
+
+  pid_t pid = fork();
+  if(pid < 0){
+    printf("Error creating process");
+  }
+  else if(pid == 0){
+    execvp(cmd->pgm->pgmlist[0], cmd->pgm->pgmlist); 
+    exit(1);
+  }
+  else{
+    wait(NULL);
+  }
+  
 }
 
 
