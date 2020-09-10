@@ -28,19 +28,17 @@
 #define TRUE 1
 #define FALSE 0
 
-void InterruptHandler(int);
+void SignalHandler(int);
 void RunCommand(int, Command *);
 void DebugPrintCommand(int, Command *);
 void PrintPgm(Pgm *);
 void stripwhite(char *);
 
-static volatile int keepRunning = 1;
 int main(void)
 {
   Command cmd;
   int parse_result;
-  signal(SIGINT, InterruptHandler);
-
+  signal(SIGINT, SignalHandler);
   while (TRUE)
   {
     char *line;
@@ -51,32 +49,29 @@ int main(void)
     {
       break;
     }
-    
-
-    while(keepRunning)
+    /* Remove leading and trailing whitespace from the line */
+    stripwhite(line);
+    /* If stripped line not blank */
+    if (*line)
     {
-
-      /* Remove leading and trailing whitespace from the line */
-      stripwhite(line);
-      /* If stripped line not blank */
-      if (*line)
-      {
-        add_history(line);
-        parse_result = parse(line, &cmd);
-        RunCommand(parse_result, &cmd);
-      }
-
-      /* Clear memory */
-      free(line);
+      add_history(line);
+      parse_result = parse(line, &cmd);
+      RunCommand(parse_result, &cmd);
     }
+
+    /* Clear memory */
+    free(line);
   }
   return 0;
 }
 
-void InterruptHandler(int dummy)
+void SignalHandler(int sigNo)
 {
-  printf("CTRL C Pressed");
-  keepRunning = 1;
+  // TODO: Remove debug prints
+  printf("Received signal: %d\n", sigNo);
+  if (sigNo == SIGINT) {
+    printf("CTRL C Pressed\n> ");
+  }
 }
 
 /* Execute the given command(s).
@@ -108,7 +103,6 @@ void RunCommand(int parse_result, Command *cmd)
   }
   
 }
-
 
 /* 
  * Print a Command structure as returned by parse on stdout. 
