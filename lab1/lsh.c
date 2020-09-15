@@ -41,6 +41,7 @@ int main(void)
   Command cmd;
   int parse_result;
   signal(SIGINT, SignalHandler);
+  signal(SIGCHLD, SignalHandler);
   while (TRUE)
   {
     char *line;
@@ -70,9 +71,11 @@ int main(void)
 void SignalHandler(int sigNo)
 {
   // TODO: Remove debug prints
-  printf("Received signal: %d\n", sigNo);
   if (sigNo == SIGINT) {
     printf("CTRL C Pressed\n> ");
+  }
+  if (sigNo == SIGCHLD) {
+    wait(NULL);
   }
 }
 
