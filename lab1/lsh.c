@@ -92,6 +92,11 @@ void RunCommand(int parse_result, Command *cmd)
   }
   DebugPrintCommand(parse_result, cmd);
   //TODO: Add checks for stdin, stdout, pipe, etc
+  //exit
+  if(strcmp(cmd->pgm->pgmlist[0], "exit") == 0){
+    exit(EXIT_SUCCESS);
+  }
+
   int bg = cmd->background;
   if(strcmp(cmd->pgm->pgmlist[0], "cd") == 0)
   {
