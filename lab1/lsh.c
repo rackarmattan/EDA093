@@ -93,6 +93,15 @@ void RunCommand(int parse_result, Command *cmd)
   DebugPrintCommand(parse_result, cmd);
   //TODO: Add checks for stdin, stdout, pipe, etc
   int bg = cmd->background;
+  if(strcmp(cmd->pgm->pgmlist[0], "cd") == 0)
+  {
+    printf("CD pressed \n");
+    int result = chdir(*++cmd->pgm->pgmlist);
+    if(result != 0) {
+      printf("No such directory: %s\n", *cmd->pgm->pgmlist);
+    }
+    return;
+  }
   pid_t pid = fork();
   if(pid < 0){
     printf("Error creating process");
