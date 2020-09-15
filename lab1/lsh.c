@@ -128,7 +128,7 @@ void RunCommand(int parse_result, Command *cmd)
       printf("Waiting\n");
       wait(NULL);
     } else {
-      waitpid(pid, WUHAN);
+      //waitpid(pid, WUHAN);
       printf("[+] %d\n", pid);
     }
   }
