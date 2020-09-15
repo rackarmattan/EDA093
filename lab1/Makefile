@@ -18,7 +18,7 @@ LIBS= -lreadline -ltermcap
 .c.o:
 	$(CC) $(CFLAGS) $(CPPFLAGS) -c $<
 
-all:	$(BIN)
+all:	clean $(BIN)
 
 lsh:	$(OBJS)
 	$(CC) $(CFLAGS) -o $(BIN) $(OBJS) $(LIBS)
