@@ -92,6 +92,7 @@ void RunCommand(int parse_result, Command *cmd)
   }
   DebugPrintCommand(parse_result, cmd);
   //TODO: Add checks for stdin, stdout, pipe, etc
+
   //exit
   if(strcmp(cmd->pgm->pgmlist[0], "exit") == 0){
     exit(EXIT_SUCCESS);
@@ -100,7 +101,6 @@ void RunCommand(int parse_result, Command *cmd)
   int bg = cmd->background;
   if(strcmp(cmd->pgm->pgmlist[0], "cd") == 0)
   {
-    printf("CD pressed \n");
     int result = chdir(*++cmd->pgm->pgmlist);
     if(result != 0) {
       printf("No such directory: %s\n", *cmd->pgm->pgmlist);
@@ -116,7 +116,11 @@ void RunCommand(int parse_result, Command *cmd)
       //signal(SIGINT, SIG_IGN);
       setpgid(0,0);
     }
-    execvp(cmd->pgm->pgmlist[0], cmd->pgm->pgmlist);
+    int result = execvp(cmd->pgm->pgmlist[0], cmd->pgm->pgmlist);
+    if(result < 0){
+      printf("Command '%s' not found.\n", *cmd->pgm->pgmlist);
+    }
+    
     exit(1);
   }
   else{ // PARENT
