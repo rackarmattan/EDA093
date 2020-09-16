@@ -27,8 +27,6 @@
 
 #define TRUE 1
 #define FALSE 0
-//TODO: Change before hand-in
-#define WUHAN WNOHANG
 
 void SignalHandler(int);
 void RunCommand(int, Command *);
@@ -100,7 +98,13 @@ void RunCommand(int parse_result, Command *cmd)
   if(strcmp(cmd->pgm->pgmlist[0], "exit") == 0){
     exit(EXIT_SUCCESS);
   }
-
+  char *stdin = cmd->rstdin;
+  printf("stdin: %s", *stdin);
+  char *stdout = cmd->rstdout;
+  if (stdin != NULL) {
+    *cmd->pgm->pgmlist[1] = stdin;
+    *cmd->pgm->pgmlist[2] = NULL;
+  }
   int bg = cmd->background;
   if(strcmp(cmd->pgm->pgmlist[0], "cd") == 0)
   {
@@ -116,14 +120,12 @@ void RunCommand(int parse_result, Command *cmd)
   }
   else if(pid == 0){ // CHILD
     if (bg == TRUE) {
-      //signal(SIGINT, SIG_IGN);
       setpgid(0,0);
     }
     int result = execvp(cmd->pgm->pgmlist[0], cmd->pgm->pgmlist);
     if(result < 0){
       printf("Command '%s' not found.\n", *cmd->pgm->pgmlist);
     }
-    
     exit(1);
   }
   else{ // PARENT
@@ -131,7 +133,6 @@ void RunCommand(int parse_result, Command *cmd)
       printf("Waiting\n");
       wait(NULL);
     } else {
-      //waitpid(pid, WUHAN);
       printf("[+] %d\n", pid);
     }
   }
