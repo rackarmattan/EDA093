@@ -23,6 +23,11 @@
 #include <readline/readline.h>
 #include <readline/history.h>
 #include <signal.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <sys/wait.h>
+#include <unistd.h>
+#include <fcntl.h>
 #include "parse.h"
 
 #define TRUE 1
@@ -98,13 +103,8 @@ void RunCommand(int parse_result, Command *cmd)
   if(strcmp(cmd->pgm->pgmlist[0], "exit") == 0){
     exit(EXIT_SUCCESS);
   }
-  char *stdin = cmd->rstdin;
-  printf("stdin: %s", *stdin);
-  char *stdout = cmd->rstdout;
-  if (stdin != NULL) {
-    *cmd->pgm->pgmlist[1] = stdin;
-    *cmd->pgm->pgmlist[2] = NULL;
-  }
+  char *stdinPath = cmd->rstdin;
+  char *stdoutPath = cmd->rstdout;
   int bg = cmd->background;
   if(strcmp(cmd->pgm->pgmlist[0], "cd") == 0)
   {
@@ -121,6 +121,36 @@ void RunCommand(int parse_result, Command *cmd)
   else if(pid == 0){ // CHILD
     if (bg == TRUE) {
       setpgid(0,0);
+    }
+    if (stdinPath != NULL) {
+      int fd;
+      if (fd = open(stdinPath, O_RDONLY) < 0) {
+        printf("Failed to open: %s\n", stdinPath);
+      } else {
+        int result;
+        if (result = dup2(fd, 0) < 0) {
+          printf("Failed to dup: %d\n", fd);
+        }
+        if (result = close(fd) < 0) {
+          printf("Failed to close %d\n", fd);
+        }
+        //printf("fd: %s\n", stdin);
+      }
+    }
+    if (stdoutPath != NULL) {
+      int fd;
+      if (fd = open(stdoutPath, O_CREAT|O_WRONLY|O_TRUNC, 0644) < 0) {
+        printf("Failed to open: %s\n", stdoutPath);
+      } else {
+        int result;
+        if (result = dup2(fd, 1) < 0) {
+          printf("Failed to dup: %d\n", fd);
+        }
+        if (result = close(fd) < 0) {
+          printf("Failed to close %d\n", fd);
+        }
+        //printf("fd: %s\n", stdout);
+      }
     }
     int result = execvp(cmd->pgm->pgmlist[0], cmd->pgm->pgmlist);
     if(result < 0){
