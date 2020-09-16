@@ -32,9 +32,14 @@
 
 #define TRUE 1
 #define FALSE 0
+#define READ 0
+#define WRITE 1
+#define STDIN 0
+#define STDOUT 1
 
 void SignalHandler(int);
 void RunCommand(int, Command *);
+void RunCommandL(int, Command *, int);
 void DebugPrintCommand(int, Command *);
 void PrintPgm(Pgm *);
 void stripwhite(char *);
@@ -92,7 +97,8 @@ void SignalHandler(int sigNo)
  */
 void RunCommand(int parse_result, Command *cmd)
 {
-  if(parse_result < 0){
+  RunCommandL(parse_result, cmd, -1);
+  /*if(parse_result < 0){
     printf("Parse ERROR");
     return;
   }
@@ -105,6 +111,16 @@ void RunCommand(int parse_result, Command *cmd)
   }
   char *stdinPath = cmd->rstdin;
   char *stdoutPath = cmd->rstdout;
+  int hasPipe;
+  int p[2];
+  Pgm *next = cmd->pgm->next;
+  if(next == NULL){
+    hasPipe = FALSE;
+  } else {
+    hasPipe = TRUE;
+    int result = pipe(p);
+    printf("Pipe result: %d", result);
+  }
   int bg = cmd->background;
   if(strcmp(cmd->pgm->pgmlist[0], "cd") == 0)
   {
@@ -119,6 +135,11 @@ void RunCommand(int parse_result, Command *cmd)
     printf("Error creating process");
   }
   else if(pid == 0){ // CHILD
+    if (hasPipe == TRUE) {
+      dup2(p[1], 1);
+      close(p[0]);
+      close(p[1]);
+    }
     if (bg == TRUE) {
       setpgid(0,0);
     }
@@ -159,13 +180,22 @@ void RunCommand(int parse_result, Command *cmd)
     exit(1);
   }
   else{ // PARENT
+    if (hasPipe == TRUE) {
+      close(p[1]);
+      dup2(p[0], 0);
+      wait(NULL);
+      int result = execvp(cmd->pgm->pgmlist[0], cmd->pgm->pgmlist);
+      if(result < 0){
+        printf("Command '%s' not found.\n", *cmd->pgm->pgmlist);
+      }
+    }
     if (bg == FALSE) {
       printf("Waiting\n");
       wait(NULL);
     } else {
       printf("[+] %d\n", pid);
     }
-  }
+    }*/
 }
 
 /* 
@@ -244,3 +274,121 @@ void stripwhite(char *string)
 
   string[++i] = '\0';
 }
+
+void RunCommandL(int parse_result, Command *cmd, int pipeInput) {
+  if(parse_result < 1){
+    printf("Parse ERROR");
+    return;
+  }
+  DebugPrintCommand(parse_result, cmd);
+  //TODO: Add checks for stdin, stdout, pipe, etc
+
+  //exit
+  if(strcmp(cmd->pgm->pgmlist[0], "exit") == 0){
+    exit(EXIT_SUCCESS);
+  }
+  char *stdinPath = cmd->rstdin;
+  char *stdoutPath = cmd->rstdout;
+  int hasPipe;
+  int p[2];
+  Pgm *next = cmd->pgm->next;
+  if(next == NULL){
+    hasPipe = FALSE;
+  } else {
+    hasPipe = TRUE;
+    int result = pipe(p);
+    printf("Pipe result: %d", result);
+  }
+  int bg = cmd->background;
+  if(strcmp(cmd->pgm->pgmlist[0], "cd") == 0)
+  {
+    int result = chdir(*++cmd->pgm->pgmlist);
+    if(result != 0) {
+      printf("No such directory: %s\n", *cmd->pgm->pgmlist);
+    }
+    return;
+  }
+  pid_t pid = fork();
+  if(pid < 0){
+    printf("Error creating process");
+  }
+  else if(pid == 0){ // CHILD
+    if (pipeInput != -1) {
+      dup2(pipeInput, STDIN);
+      close(pipeInput);
+    } else if (stdinPath != NULL) {
+      int fd;
+      if (fd = open(stdinPath, O_RDONLY) < 0) {
+        printf("Failed to open: %s\n", stdinPath);
+      } else {
+        int result;
+        if (result = dup2(fd, STDIN) < 0) {
+          printf("Failed to dup: %d\n", fd);
+        }
+        if (result = close(fd) < 0) {
+          printf("Failed to close %d\n", fd);
+        }
+        //printf("fd: %s\n", stdin);
+      }
+    }
+    if (hasPipe == TRUE) {
+      dup2(p[WRITE], STDOUT);
+      close(p[READ]);
+      close(p[WRITE]);
+    } else if (stdoutPath != NULL) {
+      int fd;
+      if (fd = open(stdoutPath, O_CREAT|O_WRONLY|O_TRUNC, 0644) < 0) {
+        printf("Failed to open: %s\n", stdoutPath);
+      } else {
+        int result;
+        if (result = dup2(fd, 1) < 0) {
+          printf("Failed to dup: %d\n", fd);
+        }
+        if (result = close(fd) < 0) {
+          printf("Failed to close %d\n", fd);
+        }
+        //printf("fd: %s\n", stdout);
+      }
+    }
+    if (bg == TRUE) {
+      setpgid(0,0);
+    }
+    int result = execvp(cmd->pgm->pgmlist[0], cmd->pgm->pgmlist);
+    if(result < 0){
+      printf("Command '%s' not found.\n", *cmd->pgm->pgmlist);
+    }
+    exit(1);
+  }
+  else{ // PARENT
+    if (hasPipe == TRUE) {
+      cmd->pgm = cmd->pgm->next;
+      close(p[1]);
+      RunCommandL(1, cmd, p[READ]);
+    } else {
+      if (bg == FALSE) {
+        printf("Waiting\n");
+        wait(NULL);
+      } else {
+        printf("[+] %d\n", pid);
+      }
+    }
+  }
+}
+/* (int parse_result, Command *cmd, int pipeInput) {
+   int p[2];
+   if hasPipe {
+      pipe(p);
+   }
+   if bg
+   if stdin
+   if stdout
+   fork
+      CHILD
+      if pipeInput defined {
+          dup2(p[write], pipeInput);
+      } else {
+          dup2(p[write], 1);
+      }
+   }
+   }
+ */
