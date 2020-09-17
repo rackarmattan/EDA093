@@ -96,10 +96,56 @@ void SignalHandler(int sigNo)
  * 2. Remove the debug printing before the final submission.
  */
 void RunCommandPipe(Command *cmd, int writePipe) {
+  printf("writePipe: %d\n", writePipe);
+  printf("pipe: %s\n", cmd->pgm->pgmlist[0]);
   Pgm *currentPgm = cmd->pgm;
-  dup2(writePipe, 1);
-  close(writePipe);
+  int hasPipe = FALSE;
+  int p[2], result;
+  char *rstdin = cmd->rstdin;
   if(currentPgm->next != NULL) {
+    hasPipe = TRUE;
+    result = pipe(p);
+    printf("Pipe result: %d\n", result);
+  }
+  pid_t pid = fork();
+  if(pid < 0){
+    printf("Error creating process\n");
+  } else if (pid == 0) { //CHILD
+    dup2(writePipe, STDOUT);
+    close(writePipe);
+    if(hasPipe == TRUE) {
+      cmd->pgm = currentPgm->next;
+      //TODO error check
+      dup2(p[READ], STDIN);
+      close(p[READ]);
+      printf("calling from 2\n");
+      RunCommandPipe(cmd, p[WRITE]);
+    } else {
+      if(rstdin != NULL) {
+        int fd = open(rstdin, O_RDONLY);
+        if (fd < 0) {
+          printf("Failed to open: %s\n", rstdin);
+        } else {
+          result = dup2(fd, STDIN);
+          if (result < 0) {
+            printf("Failed to dup: %d\n", fd);
+          }
+          result = close(fd);
+          if (result < 0) {
+            printf("Failed to close %d\n", fd);
+          }
+        }
+      }
+    }
+    //printf("Executing in pipe: %s\n", currentPgm->pgmlist[0]);
+    result = execvp(currentPgm->pgmlist[0], currentPgm->pgmlist);
+    if (result < 0){
+      printf("Command '%s' not found.\n", *currentPgm->pgmlist);
+    }
+  } else {
+    printf("IN PARENT BOY\n");
+    printf("Waiting\n");
+    wait(NULL);
   }
 }
 
@@ -107,9 +153,10 @@ void RunCommandPipe(Command *cmd, int writePipe) {
 void RunCommand(int parse_result, Command *cmd) {
   int result;
   if(parse_result < 0){
-    printf("Parse ERROR");
+    printf("Parse ERROR\n");
     return;
   }
+  printf("runCommand: %s\n", cmd->pgm->pgmlist[0]);
   // Exit
   if(strcmp(cmd->pgm->pgmlist[0], "exit") == 0){
     exit(EXIT_SUCCESS);
@@ -134,21 +181,24 @@ void RunCommand(int parse_result, Command *cmd) {
   }
   pid_t pid = fork();
   if(pid < 0){
-    printf("Error creating process");
+    printf("Error creating process\n");
   }
   else if(pid == 0){ // CHILD
     if(hasPipe == TRUE) {
       cmd->pgm = currentPgm->next;
-      dup2(p[READ], 0);
+      //TODO error check
+      printf("p[READ]: %d\n", p[READ]);
+      printf("p[WRITE]: %d\n", p[WRITE]);
+      dup2(p[READ], STDIN);
       close(p[READ]);
+      printf("calling from 1\n");
       RunCommandPipe(cmd, p[WRITE]);
+      printf("guess whos back\n");
     } else {
       if (bg == TRUE) {
         setpgid(0,0);
       }
       //STDOUT
-      printf("rstdin: %s\n", rstdin);
-      printf("rstdout: %s\n", rstdout);
       if(rstdout != NULL) {
         int fd = open(rstdout, O_CREAT|O_WRONLY|O_TRUNC, 0644);
         if (fd < 0) {
@@ -180,15 +230,17 @@ void RunCommand(int parse_result, Command *cmd) {
           }
         }
       }
-      result = execvp(cmd->pgm->pgmlist[0], cmd->pgm->pgmlist);
-      if (result < 0){
-        printf("Command '%s' not found.\n", *cmd->pgm->pgmlist);
-      }
+    }
+    printf("Executing in runCommand: %s\n", currentPgm->pgmlist[0]);
+    result = execvp(currentPgm->pgmlist[0], currentPgm->pgmlist);
+    if (result < 0){
+      printf("Command '%s' not found.\n", *currentPgm->pgmlist);
     }
   } else { // PARENT
     if (bg == FALSE) {
       printf("Waiting\n");
       wait(NULL);
+      printf("no longer waiting");
     } else {
       printf("[+] %d\n", pid);
     }
