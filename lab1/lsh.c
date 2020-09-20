@@ -38,7 +38,7 @@
 #define STDOUT 1
 
 void SignalHandler(int);
-void RunCommandPipe(Command *, int);
+void RunCommandPipe(Command *, int, int);
 void RunCommand(int, Command *);
 void DebugPrintCommand(int, Command *);
 void PrintPgm(Pgm *);
@@ -95,17 +95,16 @@ void SignalHandler(int sigNo)
  * 1. Implement this function so that it executes the given command(s).
  * 2. Remove the debug printing before the final submission.
  */
-void RunCommandPipe(Command *cmd, int writePipe) {
+void RunCommandPipe(Command *cmd, int readPipe, int writePipe) {
+  printf("readPipe: %d\n", readPipe);
   printf("writePipe: %d\n", writePipe);
   printf("pipe: %s\n", cmd->pgm->pgmlist[0]);
   Pgm *currentPgm = cmd->pgm;
   int hasPipe = FALSE;
-  int p[2], result;
+  int result;
   char *rstdin = cmd->rstdin;
   if(currentPgm->next != NULL) {
     hasPipe = TRUE;
-    result = pipe(p);
-    printf("Pipe result: %d\n", result);
   }
   pid_t pid = fork();
   if(pid < 0){
@@ -114,12 +113,10 @@ void RunCommandPipe(Command *cmd, int writePipe) {
     dup2(writePipe, STDOUT);
     close(writePipe);
     if(hasPipe == TRUE) {
+      dup2(readPipe, STDIN);
       cmd->pgm = currentPgm->next;
       //TODO error check
-      dup2(p[READ], STDIN);
-      close(p[READ]);
-      printf("calling from 2\n");
-      RunCommandPipe(cmd, p[WRITE]);
+      RunCommandPipe(cmd, readPipe, writePipe);
     } else {
       if(rstdin != NULL) {
         int fd = open(rstdin, O_RDONLY);
@@ -137,19 +134,19 @@ void RunCommandPipe(Command *cmd, int writePipe) {
         }
       }
     }
-    //printf("Executing in pipe: %s\n", currentPgm->pgmlist[0]);
+    close(readPipe);
     result = execvp(currentPgm->pgmlist[0], currentPgm->pgmlist);
     if (result < 0){
       printf("Command '%s' not found.\n", *currentPgm->pgmlist);
     }
+    exit(1);
   } else {
-    printf("IN PARENT BOY\n");
-    printf("Waiting\n");
+    printf("Waiting2\n");
     wait(NULL);
+    printf("No longer waiting2\n");
   }
 }
 
-// Do we have to fork and then call RunCommandPipe??
 void RunCommand(int parse_result, Command *cmd) {
   int result;
   if(parse_result < 0){
@@ -177,7 +174,6 @@ void RunCommand(int parse_result, Command *cmd) {
   if(currentPgm->next != NULL){
     hasPipe = TRUE;
     result = pipe(p);
-    printf("Pipe result: %d\n", result);
   }
   pid_t pid = fork();
   if(pid < 0){
@@ -189,11 +185,9 @@ void RunCommand(int parse_result, Command *cmd) {
       //TODO error check
       printf("p[READ]: %d\n", p[READ]);
       printf("p[WRITE]: %d\n", p[WRITE]);
-      dup2(p[READ], STDIN);
-      close(p[READ]);
-      printf("calling from 1\n");
-      RunCommandPipe(cmd, p[WRITE]);
-      printf("guess whos back\n");
+      RunCommandPipe(cmd, p[READ], p[WRITE]);
+      printf("p2[READ]: %d\n", p[READ]);
+      printf("p2[WRITE]: %d\n", p[WRITE]);
     } else {
       if (bg == TRUE) {
         setpgid(0,0);
@@ -236,11 +230,12 @@ void RunCommand(int parse_result, Command *cmd) {
     if (result < 0){
       printf("Command '%s' not found.\n", *currentPgm->pgmlist);
     }
+    exit(1);
   } else { // PARENT
     if (bg == FALSE) {
       printf("Waiting\n");
       wait(NULL);
-      printf("no longer waiting");
+      printf("no longer waiting\n");
     } else {
       printf("[+] %d\n", pid);
     }
