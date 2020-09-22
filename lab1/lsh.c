@@ -39,7 +39,9 @@
 
 void SignalHandler(int);
 void RunCommand(int, Command *);
-void ExecuteCommand(Pgm *, char *, char *, int, int);
+void ExecuteCommand(Command *, int);
+void CheckAndSetStdin(char *);
+void CheckAndSetStdout(char *);
 void DebugPrintCommand(int, Command *);
 void PrintPgm(Pgm *);
 void stripwhite(char *);
@@ -89,15 +91,61 @@ void SignalHandler(int sigNo)
   }
 }
 
-void ExecuteCommand(Pgm *currentPgm, char *rstdin, char *rstdout, int bg, int writePipeFd)
+void CheckAndSetStdin(char *rstdin)
 {
-  Pgm *nextPgm;
+  if (rstdin != NULL)
+  {
+    int fd = open(rstdin, O_RDONLY);
+    if (fd < 0)
+    {
+      perror("Failed to open input file\n");
+      return;
+    }
+    int result = dup2(fd, STDIN);
+    if (result < 0)
+    {
+      perror("Failed to dup file descriptor to STDIN\n");
+      return;
+    }
+    result = close(fd);
+    if (result < 0)
+    {
+      perror("Failed to close file descriptor\n");
+    }
+  }
+}
+void CheckAndSetStdout(char *rstdout)
+{
+  if (rstdout != NULL)
+  {
+    int fd = open(rstdout, O_CREAT | O_WRONLY | O_TRUNC, 0644);
+    if (fd < 0)
+    {
+      perror("Failed to open input file\n");
+      return;
+    }
+    int result = dup2(fd, STDOUT);
+    if (result < 0)
+    {
+      perror("Failed to dup file descriptor to STDOUT\n");
+      return;
+    }
+    result = close(fd);
+    if (result < 0)
+    {
+      perror("Failed to close file descriptor\n");
+    }
+  }
+}
+
+void ExecuteCommand(Command *cmd, int writePipeFd)
+{
+  Pgm *currentPgm = cmd->pgm;
   int p[2];
   int result;
   int hasPipe = FALSE;
   if (currentPgm->next != NULL)
   {
-    nextPgm = currentPgm->next;
     pipe(p);
     hasPipe = TRUE;
   }
@@ -108,18 +156,19 @@ void ExecuteCommand(Pgm *currentPgm, char *rstdin, char *rstdout, int bg, int wr
   }
   else if (pid == 0)
   { // CHILD
-    if (bg == TRUE)
-    {
-      setpgid(0, 0);
-    }
     if (writePipeFd >= 0)
     {
       dup2(writePipeFd, STDOUT);
     }
+    else
+    {
+      CheckAndSetStdout(cmd->rstdout);
+    }
     if (hasPipe)
     {
       dup2(p[READ], STDIN);
-      ExecuteCommand(nextPgm, rstdin, rstdout, bg, p[WRITE]);
+      cmd->pgm = cmd->pgm->next;
+      ExecuteCommand(cmd, p[WRITE]);
       close(p[WRITE]);
       result = execvp(currentPgm->pgmlist[0], currentPgm->pgmlist);
       if (result < 0)
@@ -130,6 +179,11 @@ void ExecuteCommand(Pgm *currentPgm, char *rstdin, char *rstdout, int bg, int wr
     }
     else
     {
+      CheckAndSetStdin(cmd->rstdin);
+      if (cmd->background == TRUE)
+      {
+        setpgid(0, 0);
+      }
       result = execvp(currentPgm->pgmlist[0], currentPgm->pgmlist);
       if (result < 0)
       {
@@ -144,7 +198,7 @@ void ExecuteCommand(Pgm *currentPgm, char *rstdin, char *rstdout, int bg, int wr
       close(p[READ]);
       close(p[WRITE]);
     }
-    if (bg == FALSE)
+    if (cmd->background == FALSE)
     {
       wait(NULL);
     }
@@ -159,7 +213,25 @@ void RunCommand(int parse_result, Command *cmd)
     perror("Parse ERROR\n");
     return;
   }
-  ExecuteCommand(cmd->pgm, cmd->rstdin, cmd->rstdout, cmd->background, -1);
+  // Check for built-in functions
+
+  // exit
+  if (strcmp(cmd->pgm->pgmlist[0], "exit") == 0)
+  {
+    exit(EXIT_SUCCESS);
+  }
+  // cd
+  if (strcmp(cmd->pgm->pgmlist[0], "cd") == 0)
+  {
+    if (chdir(*++cmd->pgm->pgmlist) != 0)
+    {
+      printf("No such directory: %s\n", *cmd->pgm->pgmlist);
+    }
+    return;
+  }
+
+  // If not a built-in execute command
+  ExecuteCommand(cmd, -1);
 }
 /* 
  * Print a Command structure as returned by parse on stdout. 
