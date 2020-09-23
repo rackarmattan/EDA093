@@ -101,13 +101,13 @@ void CheckAndSetStdin(char *rstdin)
     if (fd < 0)
     {
       perror("Failed to open input file");
-      return;
+      exit(1);
     }
     int result = dup2(fd, STDIN);
     if (result < 0)
     {
       perror("Failed to dup file descriptor to STDIN");
-      return;
+      exit(1);
     }
     result = close(fd);
     if (result < 0)
@@ -127,18 +127,19 @@ void CheckAndSetStdout(char *rstdout)
     if (fd < 0)
     {
       perror("Failed to open input file");
-      return;
+      exit(1);
     }
     int result = dup2(fd, STDOUT);
     if (result < 0)
     {
       perror("Failed to dup file descriptor to STDOUT");
-      return;
+      exit(1);
     }
     result = close(fd);
     if (result < 0)
     {
       perror("Failed to close file descriptor");
+      exit(1);
     }
   }
 }
@@ -183,12 +184,14 @@ void ExecuteCommand(Command *cmd, int writePipeFd)
       //Close the write end of the pipe after it is used
       close(p[WRITE]);
       result = execvp(currentPgm->pgmlist[0], currentPgm->pgmlist);
+      //Close the read end of the pipe after it has been used
+      close(p[READ]);
+      //If there is an error, exit this process
       if (result < 0)
       {
         perror("Command not found");
+        exit(1);
       }
-      //Close the read end of the pipe after it has been used
-      close(p[READ]);
     }
     else
     {
@@ -200,9 +203,11 @@ void ExecuteCommand(Command *cmd, int writePipeFd)
         setpgid(0, 0);
       }
       result = execvp(currentPgm->pgmlist[0], currentPgm->pgmlist);
+      //If there is an error, exit this process
       if (result < 0)
       {
         perror("Command not found");
+        exit(1);
       }
     }
   }
