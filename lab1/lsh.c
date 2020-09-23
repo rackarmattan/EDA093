@@ -80,11 +80,6 @@ int main(void)
 
 void SignalHandler(int sigNo)
 {
-  // CTRL + c pressed, don't exit process 
-  if (sigNo == SIGINT)
-  {
-    printf("CTRL C Pressed\n> ");
-  }
   // Wait for background child so it doesn't become a zombie process
   if (sigNo == SIGCHLD)
   {
@@ -233,12 +228,12 @@ void RunCommand(int parse_result, Command *cmd)
   if (parse_result < 0)
   {
     perror("Parse ERROR");
-    //annars hänger det sig
     exit(1);
   }
   // Check for built-in functions
 
   // exit
+  DebugPrintCommand(parse_result, cmd);
   if (strcmp(cmd->pgm->pgmlist[0], "exit") == 0)
   {
     exit(EXIT_SUCCESS);
