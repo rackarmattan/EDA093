@@ -80,17 +80,19 @@ int main(void)
 
 void SignalHandler(int sigNo)
 {
-  // TODO: Remove debug prints
+  // CTRL + c pressed, don't exit process 
   if (sigNo == SIGINT)
   {
     printf("CTRL C Pressed\n> ");
   }
+  // Wait for background child so it doesn't become a zombie process
   if (sigNo == SIGCHLD)
   {
     wait(NULL);
   }
 }
 
+//Checks whether stdin is set, tries to open that file and dup stdin to the new file descriptor
 void CheckAndSetStdin(char *rstdin)
 {
   if (rstdin != NULL)
@@ -98,22 +100,25 @@ void CheckAndSetStdin(char *rstdin)
     int fd = open(rstdin, O_RDONLY);
     if (fd < 0)
     {
-      perror("Failed to open input file\n");
+      perror("Failed to open input file");
       return;
     }
     int result = dup2(fd, STDIN);
     if (result < 0)
     {
-      perror("Failed to dup file descriptor to STDIN\n");
+      perror("Failed to dup file descriptor to STDIN");
       return;
     }
     result = close(fd);
     if (result < 0)
     {
-      perror("Failed to close file descriptor\n");
+      perror("Failed to close file descriptor");
     }
   }
 }
+
+// Checks whether stdin is set and tries to open that file if it exists. Otherwise, the file is
+// created. Dups stdout to the new file descriptor.
 void CheckAndSetStdout(char *rstdout)
 {
   if (rstdout != NULL)
@@ -121,29 +126,31 @@ void CheckAndSetStdout(char *rstdout)
     int fd = open(rstdout, O_CREAT | O_WRONLY | O_TRUNC, 0644);
     if (fd < 0)
     {
-      perror("Failed to open input file\n");
+      perror("Failed to open input file");
       return;
     }
     int result = dup2(fd, STDOUT);
     if (result < 0)
     {
-      perror("Failed to dup file descriptor to STDOUT\n");
+      perror("Failed to dup file descriptor to STDOUT");
       return;
     }
     result = close(fd);
     if (result < 0)
     {
-      perror("Failed to close file descriptor\n");
+      perror("Failed to close file descriptor");
     }
   }
 }
 
+//
 void ExecuteCommand(Command *cmd, int writePipeFd)
 {
   Pgm *currentPgm = cmd->pgm;
   int p[2];
   int result;
   int hasPipe = FALSE;
+  //If there are more pgms to execute, there is a need for a new pipe
   if (currentPgm->next != NULL)
   {
     pipe(p);
@@ -152,34 +159,42 @@ void ExecuteCommand(Command *cmd, int writePipeFd)
   pid_t pid = fork();
   if (pid < 0)
   {
-    perror("Error forking\n");
+    perror("Error forking");
   }
-  else if (pid == 0)
-  { // CHILD
+  else if (pid == 0) // CHILD
+  { 
+    //If there is a write end of a previous pipe, set stdout to that pipe
     if (writePipeFd >= 0)
     {
       dup2(writePipeFd, STDOUT);
     }
     else
     {
+      //If there is not a previous write end, check and eventually set stdout
       CheckAndSetStdout(cmd->rstdout);
     }
     if (hasPipe)
     {
+      //If there is a pipe, set stdin to that pipe
       dup2(p[READ], STDIN);
+      //Call this function again but with the next pgm and the write end of this pipe
       cmd->pgm = cmd->pgm->next;
       ExecuteCommand(cmd, p[WRITE]);
+      //Close the write end of the pipe after it is used
       close(p[WRITE]);
       result = execvp(currentPgm->pgmlist[0], currentPgm->pgmlist);
       if (result < 0)
       {
-        perror("Command not found.\n");
+        perror("Command not found");
       }
+      //Close the read end of the pipe after it has been used
       close(p[READ]);
     }
     else
     {
+      //If there is no pipe, check and eventually set stdout
       CheckAndSetStdin(cmd->rstdin);
+      //If the pgm is supposed to run in background, set pgid to 0
       if (cmd->background == TRUE)
       {
         setpgid(0, 0);
@@ -187,17 +202,19 @@ void ExecuteCommand(Command *cmd, int writePipeFd)
       result = execvp(currentPgm->pgmlist[0], currentPgm->pgmlist);
       if (result < 0)
       {
-        perror("Command not found.\n");
+        perror("Command not found");
       }
     }
   }
-  else
-  { // PARENT
+  else  // PARENT
+  { 
     if (hasPipe)
     {
+      //Close the unused ends of the pipe
       close(p[READ]);
       close(p[WRITE]);
     }
+    //Wait if the program is not supposed to run in background
     if (cmd->background == FALSE)
     {
       wait(NULL);
@@ -207,11 +224,12 @@ void ExecuteCommand(Command *cmd, int writePipeFd)
 
 void RunCommand(int parse_result, Command *cmd)
 {
-  //int result;
+  //Check parse result
   if (parse_result < 0)
   {
-    perror("Parse ERROR\n");
-    return;
+    perror("Parse ERROR");
+    //annars hänger det sig
+    exit(1);
   }
   // Check for built-in functions
 
