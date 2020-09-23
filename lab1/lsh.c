@@ -83,7 +83,7 @@ void SignalHandler(int sigNo)
   // Wait for background child so it doesn't become a zombie process
   if (sigNo == SIGCHLD)
   {
-    wait(NULL);
+    waitpid(-1, NULL, WNOHANG);
   }
 }
 
@@ -146,6 +146,7 @@ void ExecuteCommand(Command *cmd, int writePipeFd)
   int p[2];
   int result;
   int hasPipe = FALSE;
+  int bg = cmd->background;
   //If there are more pgms to execute, there is a need for a new pipe
   if (currentPgm->next != NULL)
   {
@@ -156,9 +157,10 @@ void ExecuteCommand(Command *cmd, int writePipeFd)
   if (pid < 0)
   {
     perror("Error forking");
+    exit(1);
   }
   else if (pid == 0) // CHILD
-  { 
+  {
     //If there is a write end of a previous pipe, set stdout to that pipe
     if (writePipeFd >= 0)
     {
@@ -193,7 +195,7 @@ void ExecuteCommand(Command *cmd, int writePipeFd)
       //If there is no pipe, check and eventually set stdout
       CheckAndSetStdin(cmd->rstdin);
       //If the pgm is supposed to run in background, set pgid to 0
-      if (cmd->background == TRUE)
+      if (bg == TRUE)
       {
         setpgid(0, 0);
       }
@@ -205,9 +207,10 @@ void ExecuteCommand(Command *cmd, int writePipeFd)
         exit(1);
       }
     }
+    exit(0);
   }
-  else  // PARENT
-  { 
+  else // PARENT
+  {
     if (hasPipe)
     {
       //Close the unused ends of the pipe
@@ -215,9 +218,9 @@ void ExecuteCommand(Command *cmd, int writePipeFd)
       close(p[WRITE]);
     }
     //Wait if the program is not supposed to run in background
-    if (cmd->background == FALSE)
+    if (bg == FALSE)
     {
-      wait(NULL);
+      waitpid(0, NULL, 0);
     }
   }
 }
@@ -233,7 +236,6 @@ void RunCommand(int parse_result, Command *cmd)
   // Check for built-in functions
 
   // exit
-  DebugPrintCommand(parse_result, cmd);
   if (strcmp(cmd->pgm->pgmlist[0], "exit") == 0)
   {
     exit(EXIT_SUCCESS);
