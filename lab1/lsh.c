@@ -96,19 +96,19 @@ void CheckAndSetStdin(char *rstdin)
     if (fd < 0)
     {
       perror("Failed to open input file");
-      exit(EXIT_FAILLURE);
+      exit(EXIT_FAILURE);
     }
     int result = dup2(fd, STDIN);
     if (result < 0)
     {
       perror("Failed to dup file descriptor to STDIN");
-      exit(EXIT_FAILLURE);
+      exit(EXIT_FAILURE);
     }
     result = close(fd);
     if (result < 0)
     {
       perror("Failed to close file descriptor");
-      exit(EXIT_FAILLURE);
+      exit(EXIT_FAILURE);
     }
   }
 }
@@ -123,19 +123,19 @@ void CheckAndSetStdout(char *rstdout)
     if (fd < 0)
     {
       perror("Failed to open input file");
-      exit(EXIT_FAILLURE);
+      exit(EXIT_FAILURE);
     }
     int result = dup2(fd, STDOUT);
     if (result < 0)
     {
       perror("Failed to dup file descriptor to STDOUT");
-      exit(EXIT_FAILLURE);
+      exit(EXIT_FAILURE);
     }
     result = close(fd);
     if (result < 0)
     {
       perror("Failed to close file descriptor");
-      exit(EXIT_FAILLURE);
+      exit(EXIT_FAILURE);
     }
   }
 }
@@ -158,7 +158,7 @@ void ExecuteCommand(Command *cmd, int writePipeFd)
   if (pid < 0)
   {
     perror("Error forking");
-    exit(EXIT_FAILLURE);
+    exit(EXIT_FAILURE);
   }
   else if (pid == 0) // CHILD
   {
@@ -188,7 +188,7 @@ void ExecuteCommand(Command *cmd, int writePipeFd)
       if (result < 0)
       {
         perror("Command not found");
-        exit(EXIT_FAILLURE);
+        exit(EXIT_FAILURE);
       }
     }
     else
@@ -205,7 +205,7 @@ void ExecuteCommand(Command *cmd, int writePipeFd)
       if (result < 0)
       {
         perror("Command not found");
-        exit(EXIT_FAILLURE);
+        exit(EXIT_FAILURE);
       }
     }
     exit(0);
@@ -232,7 +232,7 @@ void RunCommand(int parse_result, Command *cmd)
   if (parse_result < 0)
   {
     perror("Parse ERROR");
-    exit(EXIT_FAILLURE);
+    exit(EXIT_FAILURE);
   }
   // Check for built-in functions
 
