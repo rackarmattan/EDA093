@@ -145,14 +145,8 @@ void ExecuteCommand(Command *cmd, int writePipeFd)
   Pgm *currentPgm = cmd->pgm;
   int p[2];
   int result;
-  int hasPipe = FALSE;
   int bg = cmd->background;
   //If there are more pgms to execute, there is a need for a new pipe
-  if (currentPgm->next != NULL)
-  {
-    pipe(p);
-    hasPipe = TRUE;
-  }
   pid_t pid = fork();
   if (pid < 0)
   {
@@ -161,6 +155,11 @@ void ExecuteCommand(Command *cmd, int writePipeFd)
   }
   else if (pid == 0) // CHILD
   {
+    //If the process is suppose to execute in background set the PGID to the PID
+    if (bg == TRUE)
+    {
+      setpgid(0, 0);
+    }
     //If there is a write end of a previous pipe, set stdout to that pipe
     if (writePipeFd >= 0)
     {
@@ -171,8 +170,9 @@ void ExecuteCommand(Command *cmd, int writePipeFd)
       //If there is not a previous write end, check and eventually set stdout
       CheckAndSetStdout(cmd->rstdout);
     }
-    if (hasPipe)
+    if (currentPgm->next != NULL)
     {
+      pipe(p);
       //If there is a pipe, set stdin to that pipe
       dup2(p[READ], STDIN);
       //Call this function again but with the next pgm and the write end of this pipe
@@ -194,11 +194,6 @@ void ExecuteCommand(Command *cmd, int writePipeFd)
     {
       //If there is no pipe, check and eventually set stdout
       CheckAndSetStdin(cmd->rstdin);
-      //If the pgm is supposed to run in background, set pgid to 0
-      if (bg == TRUE)
-      {
-        setpgid(0, 0);
-      }
       result = execvp(currentPgm->pgmlist[0], currentPgm->pgmlist);
       //If there is an error, exit this process
       if (result < 0)
@@ -211,12 +206,6 @@ void ExecuteCommand(Command *cmd, int writePipeFd)
   }
   else // PARENT
   {
-    if (hasPipe)
-    {
-      //Close the unused ends of the pipe
-      close(p[READ]);
-      close(p[WRITE]);
-    }
     //Wait if the program is not supposed to run in background
     if (bg == FALSE)
     {
@@ -243,9 +232,17 @@ void RunCommand(int parse_result, Command *cmd)
   // cd
   if (strcmp(cmd->pgm->pgmlist[0], "cd") == 0)
   {
-    if (chdir(*++cmd->pgm->pgmlist) != 0)
+    if (*++cmd->pgm->pgmlist == NULL)
     {
-      printf("No such directory: %s\n", *cmd->pgm->pgmlist);
+      char *home = getenv("HOME");
+      chdir(home);
+    }
+    else
+    {
+      if (chdir(*++cmd->pgm->pgmlist) != 0)
+      {
+        printf("No such directory: %s\n", *cmd->pgm->pgmlist);
+      }
     }
     return;
   }
