@@ -86,11 +86,14 @@ timer_elapsed(int64_t then)
    be turned on. */
 void timer_sleep(int64_t ticks)
 {
-  struct thread *t = thread_current();
-  enum intr_level old_level = intr_disable();
-  t->sleepCount = ticks;
-  thread_block();
-  intr_set_level(old_level);
+  if (ticks > 0)
+  {
+    enum intr_level old_level = intr_disable();
+    struct thread *t = thread_current();
+    t->sleepCount = ticks;
+    thread_block();
+    intr_set_level(old_level);
+  }
 }
 
 /* Sleeps for approximately MS milliseconds.  Interrupts must be
@@ -160,8 +163,8 @@ void timer_tick_blocked_thread(struct thread *t, void *aux)
 {
   if (t->status == THREAD_BLOCKED)
   {
-    --t->sleepCount;
-    if (t->sleepCount <= 0)
+    int64_t newSleepCount = --t->sleepCount;
+    if (newSleepCount == 0)
     {
       thread_unblock(t);
     }
@@ -172,10 +175,10 @@ void timer_tick_blocked_thread(struct thread *t, void *aux)
 static void
 timer_interrupt(struct intr_frame *args UNUSED)
 {
-  enum intr_level old_level = intr_disable();
   ticks++;
   thread_tick();
-  thread_foreach(timer_tick_blocked_thread, NULL);
+  enum intr_level old_level = intr_disable();
+  thread_foreach((thread_action_func *)timer_tick_blocked_thread, NULL);
   intr_set_level(old_level);
 }
 
