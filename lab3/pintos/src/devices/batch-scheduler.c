@@ -129,7 +129,6 @@ void oneTask(task_t task)
 }
 
 /* task tries to get slot on the bus subsystem */
-// TODO: Add priority
 void getSlot(task_t task)
 {
     lock_acquire(&lock1);
@@ -168,7 +167,7 @@ void leaveSlot(task_t task)
     {
         cond_signal(&highPrioWaitingToGo[currentDirection], &lock1);
     }
-    else if (!list_empty(&highPrioWaitingToGo[1 - currentDirection]))
+    else if (!list_empty(&highPrioWaitingToGo[1 - currentDirection]) && numTasksOnBus == 0)
     {
         cond_signal(&highPrioWaitingToGo[1 - currentDirection], &lock1);
     }
